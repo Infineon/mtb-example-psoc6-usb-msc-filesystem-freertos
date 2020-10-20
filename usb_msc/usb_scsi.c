@@ -34,9 +34,8 @@
 * such use and in doing so indemnifies Cypress against all charges. Use may be
 * limited by and subject to the applicable Cypress software license agreement.
 *****************************************************************************/
-
+#include <stdio.h>
 #include "usb_scsi.h"
-#include "diskio.h"
 
 /*******************************************************************************
 * Global Variables
@@ -61,8 +60,8 @@ const unsigned char productID[] = "PSoC Logger";
 /* Product Revision */
 const unsigned char productRev[] = "9999";
 
-/* Local buffer to handle read/write requests */
-uint8_t local_buf[MSC_BLOCKSIZE];
+/* The storage removed flag */
+volatile bool storageRemovedFlag = false;
 
 /*******************************************************************************
 * Function Name: usb_scsi_serve_timeout()
@@ -130,8 +129,7 @@ cy_en_usb_dev_status_t usb_scsi_test_unit_ready(void)
 {
     cy_en_usb_dev_status_t status = CY_USB_DEV_DRV_HW_ERROR;
 
-    if(mediaEjectedState == true)
-    {
+    if((mediaEjectedState) || (storageRemovedFlag)) {
         /* Send a fail response for Test Unit Ready command
          * since the media is in ejected state. */
         status = CY_USB_DEV_DRV_HW_ERROR;
@@ -430,14 +428,14 @@ cy_en_usb_dev_status_t usb_scsi_read_format_capacities(cy_stc_usb_dev_msc_contex
     context->in_buffer[1] = 0;
     context->in_buffer[2] = 0;
     context->in_buffer[3] = FORMAT_CAP_LIST_LENGTH;
-    context->in_buffer[4] = CY_HI8(CY_HI16(MSC_NUM_OF_BLOCKS));
-    context->in_buffer[5] = CY_LO8(CY_HI16(MSC_NUM_OF_BLOCKS));
-    context->in_buffer[6] = CY_HI8(CY_LO16(MSC_NUM_OF_BLOCKS));
-    context->in_buffer[7] = CY_LO8(CY_LO16(MSC_NUM_OF_BLOCKS));
+    context->in_buffer[4] = CY_HI8(CY_HI16(context->block_num));
+    context->in_buffer[5] = CY_LO8(CY_HI16(context->block_num));
+    context->in_buffer[6] = CY_HI8(CY_LO16(context->block_num));
+    context->in_buffer[7] = CY_LO8(CY_LO16(context->block_num));
     context->in_buffer[8] = FORMAT_CAP_FORMATTED_MEDIA;
-    context->in_buffer[9] = CY_LO8(CY_HI16(MSC_BLOCKSIZE));
-    context->in_buffer[10] = CY_HI8(CY_LO16(MSC_BLOCKSIZE));
-    context->in_buffer[11] = CY_LO8(CY_LO16(MSC_BLOCKSIZE));
+    context->in_buffer[9] = CY_LO8(CY_HI16(context->block_size));
+    context->in_buffer[10] = CY_HI8(CY_LO16(context->block_size));
+    context->in_buffer[11] = CY_LO8(CY_LO16(context->block_size));
     context->packet_in_size = 12;
     context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
 
@@ -459,14 +457,14 @@ cy_en_usb_dev_status_t usb_scsi_read_format_capacities(cy_stc_usb_dev_msc_contex
 *******************************************************************************/
 cy_en_usb_dev_status_t usb_scsi_read_capacity(cy_stc_usb_dev_msc_context_t *context)
 {
-    context->in_buffer[0] = CY_HI8(CY_HI16(MSC_NUM_OF_BLOCKS - 1));
-    context->in_buffer[1] = CY_LO8(CY_HI16(MSC_NUM_OF_BLOCKS - 1));
-    context->in_buffer[2] = CY_HI8(CY_LO16(MSC_NUM_OF_BLOCKS - 1));
-    context->in_buffer[3] = CY_LO8(CY_LO16(MSC_NUM_OF_BLOCKS - 1));
-    context->in_buffer[4] = CY_HI8(CY_HI16(MSC_BLOCKSIZE));
-    context->in_buffer[5] = CY_LO8(CY_HI16(MSC_BLOCKSIZE));
-    context->in_buffer[6] = CY_HI8(CY_LO16(MSC_BLOCKSIZE));
-    context->in_buffer[7] = CY_LO8(CY_LO16(MSC_BLOCKSIZE));
+    context->in_buffer[0] = CY_HI8(CY_HI16(context->block_num - 1));
+    context->in_buffer[1] = CY_LO8(CY_HI16(context->block_num - 1));
+    context->in_buffer[2] = CY_HI8(CY_LO16(context->block_num - 1));
+    context->in_buffer[3] = CY_LO8(CY_LO16(context->block_num - 1));
+    context->in_buffer[4] = CY_HI8(CY_HI16(context->block_size));
+    context->in_buffer[5] = CY_LO8(CY_HI16(context->block_size));
+    context->in_buffer[6] = CY_HI8(CY_LO16(context->block_size));
+    context->in_buffer[7] = CY_LO8(CY_LO16(context->block_size));
     context->packet_in_size = 8;
     context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
 
@@ -474,10 +472,10 @@ cy_en_usb_dev_status_t usb_scsi_read_capacity(cy_stc_usb_dev_msc_context_t *cont
 }
 
 /*******************************************************************************
-* Function Name: usb_scsi_read_sense_10()
+* Function Name: usb_scsi_read_10()
 ********************************************************************************
 * Summary:
-*  Responds to the SCSI Read Sense10 command.
+*  Responds to the SCSI Read 10 command.
 *
 * Parameters:
 *  context: pointer to the USB MSC context
@@ -486,45 +484,62 @@ cy_en_usb_dev_status_t usb_scsi_read_capacity(cy_stc_usb_dev_msc_context_t *cont
 *  Always success
 *
 *******************************************************************************/
-cy_en_usb_dev_status_t usb_scsi_read_sense_10(cy_stc_usb_dev_msc_context_t *context, uint8_t *mem)
+cy_en_usb_dev_status_t usb_scsi_read_10(cy_stc_usb_dev_msc_context_t *context)
 {
-    uint32_t epIndex, index;
+    uint32_t index = 0;
+    uint32_t len = 0;
 
-    if (context->toggle_in == 0)
-    {
-        if (context->bytes_to_transfer > CY_USB_DEV_MSC_EP_BUF_SIZE)
-        {
-            context->packet_in_size = CY_USB_DEV_MSC_EP_BUF_SIZE;
+    /* Read data from memory */
+    if(context->dev_data_len == 0) {
+        len = (((context->bytes_to_transfer) < (CY_USB_DEV_MSC_MEDIA_PACKET)) ? (context->bytes_to_transfer) : (CY_USB_DEV_MSC_MEDIA_PACKET));
+        len = len / context->block_size;
+        if(CY_RSLT_SUCCESS != ((cy_stc_mass_storage_dev_t *)context->p_user_data)->read((context->start_location/context->block_size), context->dev_data_buf, &len)) {
+            printf("read error\r\n");
+            return CY_USB_DEV_REQUEST_NOT_HANDLED;
         }
-        else
-        {
+        context->dev_data_addr = context->start_location;
+        context->dev_data_len = len * context->block_size;
+    }
+
+    if (context->toggle_in == 0) {
+        if (context->bytes_to_transfer > CY_USB_DEV_MSC_EP_BUF_SIZE) {
+            context->packet_in_size = CY_USB_DEV_MSC_EP_BUF_SIZE;
+        } else {
             context->packet_in_size = context->bytes_to_transfer;
         }
-
-        if ((context->start_location + context->packet_in_size) > MSC_TOTAL_MEM_SIZE)
-        {
-            context->packet_in_size = MSC_TOTAL_MEM_SIZE - context->start_location;
+        if ((context->start_location + context->packet_in_size) > context->mem_size) {
+            context->packet_in_size = context->mem_size - context->start_location;
         }
 
-        /* Only read the entire section on the beginning of the section address */
-        if ((context->start_location % MSC_BLOCKSIZE) == 0)
-        {
-            /* Read from the external memory */
-            disk_read(0, local_buf, ((context->start_location + 63*MSC_BLOCKSIZE) / MSC_BLOCKSIZE), 1);
-        }
-
-        /* Allow reads from emulated memory if the requested location is within the SRAM. */
-        for(epIndex = 0, index = (context->start_location % 512); epIndex < context->packet_in_size; epIndex++, index++)
-        {
-            context->in_buffer[epIndex] = local_buf[index];
+        if (context->start_location > context->mem_size) {
+            /* Return spaces if host tries to read memory locations outside memory. */
+            memset(context->in_buffer, 0x20, context->packet_in_size);
+            context->toggle_in = 1;
+        } else {
+            /* Allow reads from memory if the requested location is within the memory. */
+            if(context->dev_data_len > 0) {
+                index = context->start_location - context->dev_data_addr;
+                memcpy(context->in_buffer, &(context->dev_data_buf[index]), context->packet_in_size);
+                /* Check the data buffer */
+                uint32_t next_start = context->start_location + context->packet_in_size;
+                if((next_start >= (context->dev_data_addr + context->dev_data_len)) && (0 < (context->bytes_to_transfer - context->packet_in_size))) {
+                    uint32_t next_len = context->bytes_to_transfer - context->packet_in_size;
+                    len = (((next_len) < (CY_USB_DEV_MSC_MEDIA_PACKET)) ? (next_len) : (CY_USB_DEV_MSC_MEDIA_PACKET));
+                    len = len / context->block_size;
+                    if(CY_RSLT_SUCCESS != ((cy_stc_mass_storage_dev_t *)context->p_user_data)->read((next_start/context->block_size), context->dev_data_buf, &len)) {
+                        printf("Next read error\r\n");
+                        return CY_USB_DEV_REQUEST_NOT_HANDLED;
+                    }
+                    context->dev_data_addr = next_start;
+                    context->dev_data_len = len * context->block_size;
+                }
+            }
         }
     }
 
-    if ((context->start_location + context->packet_in_size) > MSC_TOTAL_MEM_SIZE)
-    {
+    if ((context->start_location + context->packet_in_size) > context->mem_size) {
         context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
     }
-
     context->toggle_in = 0;
 
     return CY_USB_DEV_SUCCESS;
@@ -542,39 +557,38 @@ cy_en_usb_dev_status_t usb_scsi_read_sense_10(cy_stc_usb_dev_msc_context_t *cont
 *******************************************************************************/
 void usb_scsi_write_10(cy_stc_usb_dev_msc_context_t *context)
 {
-    if (context->toggle_out == 0)
-    {
-        if ((context->start_location + context->packet_out_size) > MSC_TOTAL_MEM_SIZE)
-        {
-            context->packet_out_size = MSC_TOTAL_MEM_SIZE - context->start_location;
+    /* Get the data length of written */
+    if(context->dev_data_len == 0) {
+        context->dev_data_wr_len = (((context->bytes_to_transfer) < (CY_USB_DEV_MSC_MEDIA_PACKET)) ? (context->bytes_to_transfer) : (CY_USB_DEV_MSC_MEDIA_PACKET));
+        context->dev_data_addr = context->start_location;
+    }
+    /* Copy the USB data to buffer */
+    if(0 < context->packet_out_size) {
+        memcpy(&(context->dev_data_buf[context->dev_data_len]), context->out_buffer, context->packet_out_size);
+        context->dev_data_len += context->packet_out_size;
+        /* Write data to memory */
+        if(context->dev_data_len >= context->dev_data_wr_len) {
+            uint32_t len = context->dev_data_wr_len / context->block_size;
+            if(CY_RSLT_SUCCESS != ((cy_stc_mass_storage_dev_t *)context->p_user_data)->write((context->dev_data_addr/context->block_size), context->dev_data_buf, &len)) {
+                printf("Memory writing error\r\n");
+                return ;
+            }
+            context->dev_data_len = 0;
+        }
+    }
+
+    if (context->toggle_out == 0) {
+        if ((context->start_location + context->packet_out_size) > context->mem_size) {
+            context->packet_out_size = context->mem_size - context->start_location;
             context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
         }
     }
 
-    /* Only read the entire section on the beginning of the section address */
-    if ((context->start_location % MSC_BLOCKSIZE) == 0)
-    {
-        /* Read current section */
-        disk_read(0, local_buf, ((context->start_location + 63*MSC_BLOCKSIZE) / MSC_BLOCKSIZE), 1);
-    }
-
-    /* Copy data from the USB to the local buffer */
-    memcpy(&local_buf[context->start_location % MSC_BLOCKSIZE], context->out_buffer, context->packet_out_size);
-
-    /* Only write in the last chunk of data in the section */
-    if ((context->start_location % MSC_BLOCKSIZE) == (MSC_BLOCKSIZE - CY_USB_DEV_MSC_EP_BUF_SIZE))
-    {
-        /* Write to the external memory */
-        disk_write(0, local_buf, ((context->start_location + 63*MSC_BLOCKSIZE) / MSC_BLOCKSIZE), 1);
-    }
-
     context->start_location += context->packet_out_size;
     context->bytes_to_transfer -= context->packet_out_size;
-
     context->cmd_status.data_residue -= context->packet_out_size;
 
-    if (context->bytes_to_transfer == 0 || context->state == CY_USB_DEV_MSC_STATUS_TRANSPORT)
-    {
+    if (context->bytes_to_transfer == 0 || context->state == CY_USB_DEV_MSC_STATUS_TRANSPORT) {
         context->cmd_status.status = CY_USB_DEV_SUCCESS;
         context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
     }
@@ -593,9 +607,8 @@ void usb_scsi_write_10(cy_stc_usb_dev_msc_context_t *context)
 *******************************************************************************/
 void usb_scsi_verify_10(cy_stc_usb_dev_msc_context_t *context)
 {
-    if ((context->start_location + context->packet_out_size) > MSC_TOTAL_MEM_SIZE)
-    {
-        context->packet_out_size = MSC_TOTAL_MEM_SIZE - context->start_location;
+    if ((context->start_location + context->packet_out_size) > context->mem_size) {
+        context->packet_out_size = context->mem_size - context->start_location;
         context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
     }
 
@@ -604,9 +617,10 @@ void usb_scsi_verify_10(cy_stc_usb_dev_msc_context_t *context)
 
     context->cmd_status.data_residue -= context->packet_out_size;
 
-    if (context->bytes_to_transfer == 0 || context->state == CY_USB_DEV_MSC_STATUS_TRANSPORT)
-    {
+    if (context->bytes_to_transfer == 0 || context->state == CY_USB_DEV_MSC_STATUS_TRANSPORT) {
         context->cmd_status.status = CY_USB_DEV_SUCCESS;
         context->state = CY_USB_DEV_MSC_STATUS_TRANSPORT;
     }
 }
+
+/* [] END OF FILE */

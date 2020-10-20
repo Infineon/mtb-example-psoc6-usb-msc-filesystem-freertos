@@ -4,28 +4,38 @@ This example demonstrates how to configure the USB block in a PSoC® 6 MCU devic
 
 ## Overview
 
-In this project, the USB block in PSoC 6 MCU is configured for Mass Storage. This allows it to enumerate on the computer as a portable storage device. The firmware implements a file system (FatFs) on an external memory - microSD. You can directly access files and folders through the Operating System (OS) running as the USB host. The firmware also provides a simple button interface to start and stop audio recordings from sampling PDM microphones and writing the audio data to the file system.
+In this project, the USB block in PSoC 6 MCU is configured for mass storage. This allows it to enumerate on the computer as a portable storage device. The firmware implements a file system (FatFs) on an external memory - microSD. You can directly access files and folders through the Operating System (OS) running as the USB host. The firmware also provides a simple button interface to start and stop audio recordings from sampling PDM microphones and writing the audio data to the file system.
 
-To see the Mass Storage descriptor, use the `usbdev-configurator` tool located at *<ModusToolbox_install_dir>/tools_<version>/usbdev-configurator*. In the tool, open the *design.cyusbdev* file located under the */COMPONENT_CUSTOM_DESIGN_MODUS/<target>* folder. 
+To see the Mass Storage descriptor, use the *usbdev-configurator* tool located at *<ModusToolbox_install_dir>/tools_<version>/usbdev-configurator*. In the tool, open the *design.cyusbdev* file located under the */COMPONENT_CUSTOM_DESIGN_MODUS/<target>* folder. 
 
 ## Requirements
 
-- [ModusToolbox™ software](https://www.cypress.com/products/modustoolbox-software-environment) v2.1
-- Programming Language: C
-- Associated Parts: All [PSoC 6 MCU](http://www.cypress.com/PSoC6) parts with USB
+- [ModusToolbox® software](https://www.cypress.com/products/modustoolbox-software-environment) v2.2  
 
-## Supported Kits
+    **Note:** This code example version requires ModusToolbox software version 2.2 or later and is not backward compatible with v2.1 or older versions. If you cannot move to ModusToolbox v2.2, use the latest compatible version of this example: [latest-v1.X](https://github.com/cypresssemiconductorco/mtb-example-psoc6-hello-world/tree/latest-v1.X).  
+- Board Support Package (BSP) minimum required version: 2.0.0  
+- Programming Language: C  
+- Associated Parts: All [PSoC® 6 MCU](http://www.cypress.com/PSoC6) parts
 
-- [PSoC 6 Wi-Fi BT Prototyping Kit](https://www.cypress.com/CY8CPROTO-062-4343W) (CY8CPROTO-062-4343W) - Default target
+## Supported Toolchains (make variable 'TOOLCHAIN')
+
+- GNU Arm® Embedded Compiler v9.3.1 (GCC_ARM) - Default value of `TOOLCHAIN`
+- Arm compiler v6.11 (ARM)
+- IAR C/C++ compiler v8.42.2 (IAR)
+
+## Supported Kits (make variable 'TARGET')
+
+- [PSoC 6 Wi-Fi BT Prototyping Kit](https://www.cypress.com/CY8CPROTO-062-4343W) (CY8CPROTO-062-4343W) - Default value of `TARGET`
 - [PSoC 62S2 Wi-Fi BT Pioneer Kit](https://www.cypress.com/CY8CKIT-062S2-43012) (CY8CKIT-062S2-43012)
+- [PSoC 64 Secure Boot Wi-Fi BT Pioneer Kit](http://www.cypress.com/CY8CKIT-064B0S2-4343W) (CY8CKIT-064B0S2-4343W)
 
 ## Hardware Setup
 
 This example uses the board's default configuration. See the kit user guide to ensure that the board is configured correctly.
 
-When using CY8CKIT-062S2-43012 as the target, PDM microphone needs to be connected externally on P10.5 and P10.4 pins. This can be done by plugging in the [CY8CKIT-028-EPD](https://www.cypress.com/documentation/development-kitsboards/e-ink-display-shield-board-cy8ckit-028-epd) E-ink Shield Display board to the board’s Arduino headers.
+When using CY8CKIT-062XXX as the target, connect the PDM microphone externally on P10.5 and P10.4 pins. This can be done by plugging in the [CY8CKIT-028-EPD](https://www.cypress.com/documentation/development-kitsboards/e-ink-display-shield-board-cy8ckit-028-epd) E-ink Shield Display board to the board’s Arduino headers.
 
-It also requires a microSD card to properly run a file system.
+It also requires a microSD card placed to the SD card slot to properly run a file system.
 
 ## Software Setup
 
@@ -37,47 +47,59 @@ This example uses the [Audacity](https://www.audacityteam.org/) tool to import r
 
 ### In Eclipse IDE for ModusToolbox:
 
-1. Click the **New Application** link in the Quick Panel (or, use **File** > **New** > **ModusToolbox Application**).
+1. Click the **New Application** link in the **Quick Panel** (or, use **File** > **New** > **ModusToolbox Application**). This launches the [Project Creator](http://www.cypress.com/ModusToolboxProjectCreator) tool.
 
 2. Pick a kit supported by the code example from the list shown in the **Project Creator - Choose Board Support Package (BSP)** dialog.
 
-   When you select a supported kit, the example is reconfigured automatically to work with the kit. To work with a different supported kit later, use the **Library Manager** to choose the BSP for the supported kit. You can use the Library Manager to select or update the BSP and firmware libraries used in this application. 
-   
-   To access the Library Manager, right-click the application name from the Project Workspace window in the IDE, and select **ModusToolbox** > **Library Manager**. You can also access it from the **Quick Panel**.
+   When you select a supported kit, the example is reconfigured automatically to work with the kit. To work with a different supported kit later, use the [Library Manager](https://www.cypress.com/ModusToolboxLibraryManager) to choose the BSP for the supported kit. You can use the Library Manager to select or update the BSP and firmware libraries used in this application. To access the Library Manager, click the link from the Quick Panel. 
 
    You can also just start the application creation process again and select a different kit.
 
    If you want to use the application for a kit not listed here, you may need to update the source files. If the kit does not have the required resources, the application may not work.
 
-3. In the **Project Creator - Select Application** dialog, choose the example.
+3. In the **Project Creator - Select Application** dialog, choose the example by enabling the checkbox.
 
-4. Optionally, update the **Application Name** and **Location** fields with the application name and local path where the application is created.
+4. Optionally, change the suggested **New Application Name**.
 
-5. Click **Create** to complete the application creation process.
+5. Enter the local path in the **Application(s) Root Path** field to indicate where the application needs to be created. 
 
-For more details, see the Eclipse IDE for ModusToolbox User Guide: *{ModusToolbox install directory}/ide_{version}/docs/mt_ide_user_guide.pdf*.
+   Applications that can share libraries can be placed in the same root path.
+
+6. Click **Create** to complete the application creation process.
+
+For more details, see the [Eclipse IDE for ModusToolbox User Guide](https://www.cypress.com/MTBEclipseIDEUserGuide) (locally available at *{ModusToolbox install directory}/ide_{version}/docs/mt_ide_user_guide.pdf*).
 
 ### In Command-line Interface (CLI):
+
+ModusToolbox provides the Project Creator as both a GUI tool and a command line tool to easily create one or more ModusToolbox applications. See the "Project Creator Tools" section of the [ModusToolbox User Guide](https://www.cypress.com/ModusToolboxUserGuide) for more details.
+
+Alternatively, you can manually create the application using the following steps.
 
 1. Download and unzip this repository onto your local machine, or clone the repository.
 
 2. Open a CLI terminal and navigate to the application folder.
 
-   On Linux and macOS, you can use any terminal application. On Windows, navigate to the modus-shell directory (*{ModusToolbox install directory}/tools_\<version>/modus-shell*) and run *Cygwin.bat*.
+   On Linux and macOS, you can use any terminal application. On Windows, open the **modus-shell** app from the Start menu.
+
+   **Note:** The cloned application contains a default BSP file (*TARGET_xxx.mtb*) in the *deps* folder. Use the [Library Manager](https://www.cypress.com/ModusToolboxLibraryManager) (`make modlibs` command) to select and download a different BSP file, if required. If the selected kit does not have the required resources or is not [supported](#supported-kits-make-variable-target), the application may not work. 
 
 3. Import the required libraries by executing the `make getlibs` command.
 
+Various CLI tools include a `-h` option that prints help information to the terminal screen about that tool. For more details, see the [ModusToolbox User Guide](https://www.cypress.com/ModusToolboxUserGuide) (locally available at *{ModusToolbox install directory}/docs_{version}/mtb_user_guide.pdf*).
+
 ### In Third-party IDEs:
 
-1. Follow the instructions from the [CLI](#in-command-line-interface-cli) section to download or clone the repository, and import the libraries using the `make getlibs` command.
+1. Follow the instructions from the [CLI](#in-command-line-interface-cli) section to create the application, and import the libraries using the `make getlibs` command.
 
-2. Export the application to a supported IDE using the `make <ide>` command.
+2. Export the application to a supported IDE using the `make <ide>` command. 
+
+    For a list of supported IDEs and more details, see the "Exporting to IDEs" section of the [ModusToolbox User Guide](https://www.cypress.com/ModusToolboxUserGuide) (locally available at *{ModusToolbox install directory}/docs_{version}/mtb_user_guide.pdf*.
 
 3. Follow the instructions displayed in the terminal to create or import the application as an IDE project.
 
-For more details, see the "Exporting to IDEs" section of the ModusToolbox User Guide: *{ModusToolbox install directory}/ide_{version}/docs/mtb_user_guide.pdf*.
-
 ## Operation
+
+If using a PSoC 64 Secure MCU kit (like CY8CKIT-064B0S2-4343W), the PSoC 64 Secure MCU must be provisioned with keys and policies before being programmed. Follow the instructions in the [Secure Boot SDK User Guide](https://www.cypress.com/documentation/software-and-drivers/psoc-64-secure-mcu-secure-boot-sdk-user-guide) to provision the device. If the kit is already provisioned, copy-paste the keys and policy folder to the application folder.
 
 1. Connect the board to your PC using the provided USB cable through the KitProg3 USB connector.
 
@@ -87,13 +109,13 @@ For more details, see the "Exporting to IDEs" section of the ModusToolbox User G
 
 4. Program the board.
 
-   - **Using Eclipse IDE for ModusToolbox**:
+   - **Using Eclipse IDE for ModusToolbox:**
 
       1. Select the application project in the Project Explorer.
 
-      2. In the **Quick Panel**, scroll down, and click **\<Application Name> Program (KitProg3)**.  
+      2. In the **Quick Panel**, scroll down, and click **\<Application Name> Program (KitProg3_MiniProg4)**.
 
-   - **Using CLI**:
+   - **Using CLI:**
 
      From the terminal, execute the `make program` command to build and program the application using the default toolchain to the default target. You can specify a target and toolchain manually:
       ```
@@ -105,7 +127,7 @@ For more details, see the "Exporting to IDEs" section of the ModusToolbox User G
       make program TARGET=CY8CPROTO-062-4343W TOOLCHAIN=GCC_ARM
       ```
 
-      **Note**:  Before building the application, ensure that the *deps* folder contains the BSP file (*TARGET_xxx.lib*) corresponding to the TARGET. Execute the `make getlibs` command to fetch the BSP contents before building the application.  
+      **Note:** Before building the application, ensure that the *deps* folder contains the BSP file (*TARGET_xxx.lib*) corresponding to the TARGET. Execute the `make getlibs` command to fetch the BSP contents before building the application.  
 
       After programming, the application starts automatically. Confirm that the title of the code example and some additional messages are printed as shown below:
 
@@ -169,11 +191,11 @@ For more details, see the "Exporting to IDEs" section of the ModusToolbox User G
    
    2. Navigate to the USB drive and select the *PSOC_RECORDS/rec_0001.raw* file (or any other in the *PSOC_RECORDS* folder). Note that reading from the USB drive might take a few seconds, specially if the file is very large. 
    
-      By default, the sample rate is set to be *48000 Hz* and sample mode to *stereo*. The **Encoding** is fixed to *Signed 16-bit PCM* and **Byte order** to *Little-endian*, as shown in [Figure 1]().
+      By default, the sample rate is set to be *48000 Hz* and sample mode to *stereo*. The **Encoding** is fixed to *Signed 16-bit PCM* and **Byte order** to *Little-endian*, as shown in Figure 1.
 
-   **Figure 1. Import Window**
+      **Figure 1. Import Window**
 
-   ![Import Window](images/import_window.png)
+      ![Import W indow](images/import_window.png)
 
    3. Once imported, play the recorded data to your computer speaker.
 
@@ -201,20 +223,22 @@ For more details, see the "Exporting to IDEs" section of the ModusToolbox User G
 
 12. Repeat Step 9, but set the sample rate to *16000 Hz* and sample mode to *mono*.
 
-In addition to manipulating the recorded files, you can copy new files, create new folders, and delete the content in the USB drive through the OS, as any other storage device.
+In addition to manipulating the recorded files, you can copy new files, create new folders, and delete the content in the USB drive through the OS as any other storage device.
 
 ## Debugging
 
-You can debug the example to step through the code. In the IDE, use the **\<Application Name> Debug (KitProg3)** configuration in the **Quick Panel**. For more details, see the "Program and Debug" section in the Eclipse IDE for ModusToolbox User Guide: *{ModusToolbox install directory}/ide_{version}/docs/mt_ide_user_guide.pdf*.
+You can debug the example to step through the code. In the IDE, use the **\<Application Name> Debug (KitProg3_MiniProg4)** configuration in the **Quick Panel**. For more details, see the "Program and Debug" section in the [Eclipse IDE for ModusToolbox User Guide](https://www.cypress.com/MTBEclipseIDEUserGuide).
+
+**Note:** **(Only while debugging)** On the CM4 CPU, some code in `main()` may execute before the debugger halts at the beginning of `main()`. This means that some code executes twice - once before the debugger stops execution, and again after the debugger resets the program counter to the beginning of `main()`. See [KBA231071](https://community.cypress.com/docs/DOC-21143) to learn about this and for the workaround.
 
 ## Design and Implementation
 
 This code example uses the FreeRTOS on the CM4 CPU. The following tasks are created in *main.c*:
 
-- **Audio Task**: handles the creation of audio records.
-- **USB Task**: handles the USB communication.
+- **Audio Task:** handles the creation of audio records.
+- **USB Task:** handles the USB communication.
 
-The firmware also uses a mutex (*rtos_fs_mutex*) to control accesses to the file system by these two tasks. FatFs is the chosen file system library to enable manipulating files in this code example. The FatFs library files are located in the *fatfs* folder. The low-level layer used by the library to access the PSoC 6 MCU driver is implemented in the *fatfs/disk.c* file. PSoC 6 MCU uses the SD Host interface to communicate with the microSD card.
+The firmware also uses a mutex (`rtos_fs_mutex`) to control accesses to the file system by these two tasks. FatFs is the chosen file system library to enable manipulating files in this code example. The FatFs library files are located in the *fatfs* folder. The low-level layer used by the library to access the PSoC 6 MCU driver is implemented in the *fatfs/disk.c* file. PSoC 6 MCU uses the SD Host interface to communicate with the microSD card. The *sd_card.c/h* files implement a wrapper to the SD Host driver.
 
 In the *USB task*, the USB Device block is configured to use the MSC Device Class. The task constantly checks if any USB requests are received. It bridges the USB with the file system, allowing the computer to view all files in the microSD card. The *usb_msc* folder contains all the related USB implementation as follows: 
 
@@ -232,7 +256,7 @@ The *Audio task* also checks for kit button presses, which can start or stop a r
 
 Once a recording is in progress, the PDM/PCM block generates periodic interrupts to the CPU, indicating that new audio data is available. A ping-pong mechanism is implemented to avoid any corruption between the data the PDM/PCM block generates and the data the firmware manipulates. Once the data is available, the *Audio task* writes the raw audio data to the open *rec_xxxx.raw* file. 
 
-When the user presses the kit user button again, the recording stops and the file is saved. The user can access this file through the USB Mass Storage device and use a software like Audacity to import it and play it. [Figure 2]() shows the flowchart of the *Audio Task*.
+When you press the kit user button again, the recording stops and the file is saved. You can access this file through the USB Mass Storage device and use a software like Audacity to import it and play it. Figure 2 shows the flowchart of the *Audio Task*.
 
    **Figure 2. Audio Task Flowchart**
 
@@ -262,17 +286,22 @@ When the user presses the kit user button again, the recording stops and the fil
 | **Device Documentation**                                     |                                                              |
 | [PSoC 6 MCU Datasheets](https://www.cypress.com/search/all?f[0]=meta_type%3Atechnical_documents&f[1]=resource_meta_type%3A575&f[2]=field_related_products%3A114026) | [PSoC 6 Technical Reference Manuals](https://www.cypress.com/search/all/PSoC%206%20Technical%20Reference%20Manual?f[0]=meta_type%3Atechnical_documents&f[1]=resource_meta_type%3A583) |
 | **Development Kits**                                         | Buy at www.cypress.com                                       |
-| [CY8CPROTO-062-4343W](https://www.cypress.com/CY8CPROTO-062-4343W) PSoC 6 Wi-Fi BT Prototyping Kit | [CY8CKIT-062S2-43012](https://www.cypress.com/CY8CKIT-062S2-43012) PSoC 62S2 Wi-Fi BT Pioneer Kit | 
+| [CY8CKIT-062-BLE](https://www.cypress.com/CY8CKIT-062-BLE) PSoC 6 BLE Pioneer Kit | [CY8CKIT-062-WiFi-BT](https://www.cypress.com/CY8CKIT-062-WiFi-BT) PSoC 6 WiFi-BT Pioneer Kit |
+| [CY8CPROTO-063-BLE](https://www.cypress.com/CY8CPROTO-063-BLE) PSoC 6 BLE Prototyping Kit | [CY8CPROTO-062-4343W](https://www.cypress.com/CY8CPROTO-062-4343W) PSoC 6 Wi-Fi BT Prototyping Kit |
+| [CY8CKIT-062S2-43012](https://www.cypress.com/CY8CKIT-062S2-43012) PSoC 62S2 Wi-Fi BT Pioneer Kit | [CY8CPROTO-062S3-4343W](https://www.cypress.com/CY8CPROTO-062S3-4343W) PSoC 62S3 Wi-Fi BT Prototyping Kit |
+| [CYW9P62S1-43438EVB-01](https://www.cypress.com/CYW9P62S1-43438EVB-01) PSoC 62S1 Wi-Fi BT Pioneer Kit | [CYW9P62S1-43012EVB-01](https://www.cypress.com/CYW9P62S1-43012EVB-01) PSoC 62S1 Wi-Fi BT Pioneer Kit |                                                              |
+|[CY8CKIT-064B0S2-4343W](http://www.cypress.com/CY8CKIT-064B0S2-4343W) PSoC 64 Secure Boot Wi-Fi BT Pioneer Kit|  |                                                              |
 | **Libraries**                                                 |                                                              |
-| PSoC 6 Peripheral Driver Library (PDL) and docs                    | [psoc6pdl](https://github.com/cypresssemiconductorco/psoc6pdl) on GitHub |
-| Cypress Hardware Abstraction Layer (HAL) Library and docs          | [psoc6hal](https://github.com/cypresssemiconductorco/psoc6hal) on GitHub |
-| RetargetIO - A utility library to retarget the standard input/output (STDIO) messages to a UART port | [retarget-io](https://github.com/cypresssemiconductorco/retarget-io) on GitHub |
+| PSoC 6 Peripheral Driver Library (PDL) and docs  | [mtb-pdl-cat1](https://github.com/cypresssemiconductorco/mtb-pdl-cat1) on GitHub |
+| Cypress Hardware Abstraction Layer (HAL) Library and docs     | [mtb-hal-cat1](https://github.com/cypresssemiconductorco/mtb-hal-cat1) on GitHub |
+| Retarget IO - A utility library to retarget the standard input/output (STDIO) messages to a UART port | [retarget-io](https://github.com/cypresssemiconductorco/retarget-io) on GitHub |
 | **Middleware**                                               |                                                              |
-| CapSense library and docs                                    | [capsense](https://github.com/cypresssemiconductorco/capsense) on GitHub |
+| CapSense® library and docs                                    | [capsense](https://github.com/cypresssemiconductorco/capsense) on GitHub |
+| USB Device library and docs                                  | [usbdev](https://github.com/cypresssemiconductorco/usbdev) on GitHub |
 | Links to all PSoC 6 MCU Middleware                           | [psoc6-middleware](https://github.com/cypresssemiconductorco/psoc6-middleware) on GitHub |
 | **Tools**                                                    |                                                              |
-| [Eclipse IDE for ModusToolbox](https://www.cypress.com/modustoolbox)     | The multi-platform, Eclipse-based Integrated Development Environment (IDE) that supports application configuration and development for PSoC 6 MCU and IoT designers.             |
-| [PSoC Creator](https://www.cypress.com/products/psoc-creator-integrated-design-environment-ide) | The Cypress IDE for PSoC and FM0+ MCU development.            |
+| [Eclipse IDE for ModusToolbox](https://www.cypress.com/modustoolbox)     | The cross-platform, Eclipse-based IDE for IoT designers that supports application configuration and development targeting converged MCU and wireless systems.             |
+| [PSoC Creator™](https://www.cypress.com/products/psoc-creator-integrated-design-environment-ide) | The Cypress IDE for PSoC and FM0+ MCU development.            |
 
 ## Other Resources
 
@@ -287,12 +316,13 @@ Document Title: *CE230360* - *PSoC 6 MCU: USB Mass Storage File System*
 | Version | Description of Change |
 | ------- | --------------------- |
 | 1.0.0   | New code example      |
+| 2.0.0   | Major update to support ModusToolbox software v2.2, added support for new kits<br> This version is not backward compatible with ModusToolbox software v2.1 <br> Added the sd_card.c/h files to abstract the SD host driver |
 
 ------
 
 All other trademarks or registered trademarks referenced herein are the property of their respective owners.
 
-![Banner](images/ifx-cy-banner.png)
+![banner](images/ifx-cy-banner.png)
 
 -------------------------------------------------------------------------------
 

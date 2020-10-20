@@ -7,44 +7,18 @@
 /* storage control modules to the FatFs module with a defined API.       */
 /*-----------------------------------------------------------------------*/
 
-#include "ff.h"            /* Obtains integer types */
-#include "diskio.h"        /* Declarations of disk functions */
-#include "cy_pdl.h"
+#include "ff.h"         /* Obtains integer types */
+#include "diskio.h"     /* Declarations of disk functions */
 #include "cyhal.h"
-#include "cybsp.h"
+#include "sd_card.h"
+#include <stdio.h>
 
 /* Definitions of physical drive number for each drive */
 #define DEV_SD        0    /* Example: Map SD to physical drive 0 */
 
-/* Pins connected to the SDHC block */
-#define cmd                 P12_4
-#define clk                 P12_5
-#define dat0                P13_0
-#define dat1                P13_1
-#define dat2                P13_2
-#define dat3                P13_3
-/* dat4 to dat7 are reserved for future use and should be NC */
-#define dat4                NC
-#define dat5                NC
-#define dat6                NC
-#define dat7                NC
-#define card_detect         NC
-#define emmc_reset          NC
-#define io_volt_sel         NC
-#define card_if_pwren       NC
-#define card_mech_writeprot NC
-#define led_ctl             NC
-#define custom_card_detect  P13_5
+/* SD initialization flag */
+uint8_t SD_initVar = 0U;
 
-bool SD_INIT = false;
-
-cyhal_sdhc_t sdhc_obj;
-
-__USED bool Cy_SD_Host_IsCardConnected(SDHC_Type const *base)
-{
-    /* P13_5 reads 0 when card detected, 1 when card not detected */
-    return cyhal_gpio_read(custom_card_detect) ? false : true;
-}
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
@@ -54,24 +28,15 @@ DSTATUS disk_status (
     BYTE pdrv        /* Physical drive number to identify the drive */
 )
 {
-    DSTATUS stat = 0;
+    DSTATUS stat = RES_OK;
 
     switch (pdrv) {
-        case DEV_SD :
-
-            if (false == Cy_SD_Host_IsCardConnected(NULL))
-            {
-                stat |= STA_NODISK;
-            }
-
-            if(false == SD_INIT)
-            {
-                stat |= STA_NOINIT;
-            }
-
-            return stat;
+    case DEV_SD :
+        if(0U == SD_initVar) {
+            return STA_NOINIT;
+        }
+        return stat;
     }
-
     return STA_NOINIT;
 }
 
@@ -86,39 +51,18 @@ DSTATUS disk_initialize (
 )
 {
     DSTATUS stat = RES_OK;
-    cy_rslt_t result = CY_RSLT_SUCCESS;
-
-    const cyhal_sdhc_config_t sdhc_config = {
-        .enableLedControl = false,
-        .lowVoltageSignaling = false,
-        .isEmmc   = false,
-        .busWidth = 4,
-    };
+    cy_rslt_t result;
 
     switch (pdrv) {
     case DEV_SD :
-
-        if (SD_INIT == false)
-        {
-            /* Initialize the custom Card Detect pin */
-            result |= cyhal_gpio_init(custom_card_detect, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, true);
-
-            /* Initialize the SD Card interface */
-            result |= cyhal_sdhc_init(&sdhc_obj, &sdhc_config, cmd, clk,
-                                     dat0, dat1, dat2, dat3, dat4, dat5, dat6, dat7,
-                                     card_detect, io_volt_sel,
-                                     card_if_pwren,
-                                     card_mech_writeprot, led_ctl, emmc_reset);
-
-            if (result != CY_RSLT_SUCCESS)
-            {
-                stat |= STA_NOINIT;
-                return stat;
+        if (0U == SD_initVar) {
+            /* Initialize the SD card */
+            result = sd_card_init();
+            if(result != CY_RSLT_SUCCESS) {
+                return STA_NOINIT;
             }
+            SD_initVar = 1U;
         }
-
-        SD_INIT = true;
-
         return stat;
     }
     return STA_NOINIT;
@@ -137,16 +81,20 @@ DRESULT disk_read (
     UINT count        /* Number of sectors to read */
 )
 {
-    DRESULT res;
+    DRESULT res = RES_OK;
     cy_rslt_t result;
 
     switch (pdrv) {
-        case DEV_SD :
-            {
-                result = cyhal_sdhc_read(&sdhc_obj, sector, buff, &count);
-                res = (result == CY_RSLT_SUCCESS) ? RES_OK : RES_ERROR;
-                return res;
-            }
+    case DEV_SD :
+        if (0U == SD_initVar) {
+            return RES_NOTRDY;
+        }
+        result = sd_card_read(sector, buff, (uint32_t *)&count);
+        if (result != CY_RSLT_SUCCESS) {
+            printf("sd_card_read error: sector=%d count=%d\r\n", (int)sector, (int)count);
+            return RES_ERROR;
+        }
+        return res;
     }
 
     return RES_PARERR;
@@ -167,17 +115,20 @@ DRESULT disk_write (
     UINT count            /* Number of sectors to write */
 )
 {
-    DRESULT res;
-    cy_rslt_t result = CY_RSLT_SUCCESS;
+    DRESULT res = RES_OK;
+    cy_rslt_t result;
 
     switch (pdrv) {
-        case DEV_SD :
-            {
-                result = cyhal_sdhc_write(&sdhc_obj, sector, buff, &count);
-
-                res = (result == CY_RSLT_SUCCESS) ? RES_OK : RES_ERROR;
-                return res;
-            }
+    case DEV_SD :
+        if (0U == SD_initVar) {
+            return RES_NOTRDY;
+        }
+        result = sd_card_write(sector, buff, (uint32_t *)&count);
+        if (result != CY_RSLT_SUCCESS) {
+            printf("sd_card_write error: sector=%d count=%d\r\n", (int)sector, (int)count);
+            return RES_ERROR;
+        }
+        return res;
     }
 
     return RES_PARERR;
@@ -202,24 +153,30 @@ DRESULT disk_ioctl (
     void *buff        /* Buffer to send/receive control data */
 )
 {
+    DRESULT res = RES_OK;
+
     switch (pdrv) {
     case DEV_SD :
-
-        switch (cmd) {
-            case GET_SECTOR_SIZE :     // Get R/W sector size (WORD)
-                *(WORD *) buff = 512;
-            break;
-            case GET_BLOCK_SIZE :      // Get erase block size in unit of sector (DWORD)
-                *(DWORD *) buff = 32;
-            break;
-            case GET_SECTOR_COUNT :
-                *(DWORD *) buff = sdhc_obj.context.maxSectorNum;
-            break;
-            case CTRL_SYNC :
-            break;
+        if (0U == SD_initVar) {
+            return RES_NOTRDY;
         }
-
-        return RES_OK;
+        switch(cmd) {
+            case CTRL_SYNC:
+                break;
+            case GET_SECTOR_COUNT: /* Get media size */
+                *(DWORD *) buff = sd_card_max_sector_num();
+                break;
+            case GET_SECTOR_SIZE: /* Get sector size */
+                *(WORD *) buff = sd_card_sector_size();
+                break;
+            case GET_BLOCK_SIZE: /* Get erase block size */
+                *(DWORD *) buff = 8;
+                break;
+            default:
+                res = RES_PARERR;
+                break;
+        }
+        return res;
     }
 
     return RES_PARERR;

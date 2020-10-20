@@ -36,6 +36,8 @@ extern "C" {
 
 #define CY_USB_DEV_MSC_CMD_SIZE         0x10
 #define CY_USB_DEV_MSC_EP_BUF_SIZE      64u
+/* MSC Class Config */
+#define CY_USB_DEV_MSC_MEDIA_PACKET     8192
 
 /*******************************************************************************
 *                          Enumerated Types
@@ -134,6 +136,19 @@ typedef struct
     /* OUT Endpoint Buffer */
     uint8_t out_buffer[CY_USB_DEV_MSC_EP_BUF_SIZE];
 
+    void *p_user_data;
+
+    /* Mass storage device informatiom */
+    uint32_t block_num;
+    uint32_t block_size;
+    uint64_t mem_size;
+
+    /* Mass storage device data buffer  */
+    uint32_t dev_data_addr;
+    uint32_t dev_data_len;
+    uint32_t dev_data_wr_len;
+    uint8_t dev_data_buf[CY_USB_DEV_MSC_MEDIA_PACKET];
+
     /** \endcond */
 
 } cy_stc_usb_dev_msc_context_t;
@@ -141,6 +156,19 @@ typedef struct
 
 /** \} group_usb_dev_msc_data_structures */
 
+
+/** Mass Storage device structure.
+*/
+typedef struct
+{
+    bool      (* is_connected)(void);
+    cy_rslt_t (* init)(void);
+    uint32_t  (* get_block_size)(void);
+    uint32_t  (* get_block_num)(void);
+    uint64_t  (* get_mem_size)(void);
+    cy_rslt_t (* read)(uint32_t blk_addr, uint8_t *buf, uint32_t *blk_len);
+    cy_rslt_t (* write)(uint32_t blk_addr, const uint8_t *buf, uint32_t *blk_len);
+} cy_stc_mass_storage_dev_t;
 
 /*******************************************************************************
 *                          Function Prototypes
@@ -170,8 +198,8 @@ __STATIC_INLINE cy_stc_usb_dev_class_t * Cy_USB_Dev_Msc_GetClass(cy_stc_usb_dev_
 * \addtogroup group_usb_dev_msc_macros
 * \{
 */
-#define CY_USB_DEV_MSC_GET_MAX_LUN        0xFE
-#define CY_USB_DEV_MSC_RESET            0xFF
+#define CY_USB_DEV_MSC_GET_MAX_LUN                      0xFE
+#define CY_USB_DEV_MSC_RESET                            0xFF
 
 #define CY_USB_DEV_MSC_SCSI_TEST_UNIT_READY             0x00
 #define CY_USB_DEV_MSC_SCSI_REQUEST_SENSE               0x03

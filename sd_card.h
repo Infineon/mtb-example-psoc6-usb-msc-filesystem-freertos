@@ -1,9 +1,9 @@
 /*****************************************************************************
-* File Name: usb_comm.h
+* File Name: sd_card.h
 *
 * Description:
 *  This file contains the function prototypes and constants used in
-*  the usb_comm.c.
+*  the sd_card.c.
 *
 * Note:
 *
@@ -35,33 +35,21 @@
 * such use and in doing so indemnifies Cypress against all charges. Use may be
 * limited by and subject to the applicable Cypress software license agreement.
 *****************************************************************************/
+#if !defined(SD_CARD_H)
+#define SD_CARD_H
 
-#ifndef USB_COMM_H_
-#define USB_COMM_H_
+#include <stdbool.h>
+#include <stdint.h>
+#include "cyhal.h"
 
-#include "cy_usb_dev.h"
-#include "cy_usb_dev_msc.h"
+bool sd_card_is_connected(void);
+cy_rslt_t sd_card_init(void);
+uint32_t sd_card_sector_size(void);
+uint32_t sd_card_max_sector_num(void);
+uint64_t sd_card_total_mem_bytes(void);
+cy_rslt_t sd_card_read(uint32_t address, uint8_t *data, uint32_t *length);
+cy_rslt_t sd_card_write(uint32_t address, const uint8_t *data, uint32_t *length);
 
-/*******************************************************************************
-* Constants
-********************************************************************************/
-/* MSC OUT and IN endpoint address */
-#define MSC_OUT_ENDPOINT_ADDR   0x02
-#define MSC_IN_ENDPOINT_ADDR    0x81
-#define MSC_OUT_ENDPOINT        0x02
-#define MSC_IN_ENDPOINT         0x01
-
-/*******************************************************************************
-* USB Communication Functions
-*******************************************************************************/
-void     usb_comm_init(void);
-void     usb_comm_connect(void);
-void     usb_comm_link_fs(uint8_t *fs);
-bool     usb_comm_is_ready(void);
-void     usb_comm_refresh(void);
-void     usb_comm_process(void);
-
-
-#endif /* USB_COMM_H_ */
+#endif /* SD_CARD_H */
 
 /* [] END OF FILE */

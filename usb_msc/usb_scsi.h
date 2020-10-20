@@ -41,17 +41,10 @@
 
 #include "cy_usb_dev_msc.h"
 
-typedef unsigned int    UINT;    /* int must be 16-bit or 32-bit */
-typedef unsigned char    BYTE;    /* char must be 8-bit */
-typedef uint32_t        DWORD;    /* 32-bit unsigned integer */
-typedef DWORD             LBA_t;
-
 /*******************************************************************************
 * Constants
 ********************************************************************************/
-#define MSC_TOTAL_MEM_SIZE      16000000u
-#define MSC_BLOCKSIZE           512
-#define MSC_NUM_OF_BLOCKS       (MSC_TOTAL_MEM_SIZE/MSC_BLOCKSIZE)
+#define MSC_BLOCKSIZE                               512
 
 #define STATUS_FILE_TIMEOUT                         200
 
@@ -94,6 +87,12 @@ typedef DWORD             LBA_t;
 #define FORMAT_CAP_FORMATTED_MEDIA                  0x02
 
 /*******************************************************************************
+* Extern Global Variables
+*******************************************************************************/
+extern uint8_t forceOS;
+extern volatile bool storageRemovedFlag;
+
+/*******************************************************************************
 * Function Prototypes
 ********************************************************************************/
 void usb_scsi_serve_timeout(void);
@@ -110,8 +109,10 @@ cy_en_usb_dev_status_t usb_scsi_start_stop_unit(uint8_t eject_indicator);
 cy_en_usb_dev_status_t usb_scsi_read_format_capacities(cy_stc_usb_dev_msc_context_t *context);
 cy_en_usb_dev_status_t usb_scsi_read_capacity(cy_stc_usb_dev_msc_context_t *context);
 cy_en_usb_dev_status_t usb_scsi_read_capacity(cy_stc_usb_dev_msc_context_t *context);
-cy_en_usb_dev_status_t usb_scsi_read_sense_10(cy_stc_usb_dev_msc_context_t *context, uint8_t *mem);
+cy_en_usb_dev_status_t usb_scsi_read_10(cy_stc_usb_dev_msc_context_t *context);
 void usb_scsi_write_10(cy_stc_usb_dev_msc_context_t *context);
 void usb_scsi_verify_10(cy_stc_usb_dev_msc_context_t *context);
 
 #endif /* USB_SCSI_H_ */
+
+/* [] END OF FILE */
