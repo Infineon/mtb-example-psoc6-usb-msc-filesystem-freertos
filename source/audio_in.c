@@ -1,29 +1,29 @@
-/******************************************************************************
-* File Name:   main.c
+/*****************************************************************************
+* File Name: audio_in.c
 *
-* Description: This is the source code for the USB Mass Storage File System
-*              for ModusToolbox.
+* Description:
+*  This file provides the source code to implement the audio input task.
 *
-* Related Document: See Readme.md
+* Note:
 *
+******************************************************************************
+* Copyright 2021, Cypress Semiconductor Corporation (an Infineon company) or
+* an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
 *
-*******************************************************************************
-* (c) (2020), Cypress Semiconductor Corporation. All rights reserved.
-*******************************************************************************
-* This software, including source code, documentation and related materials
-* ("Software"), is owned by Cypress Semiconductor Corporation or one of its
-* subsidiaries ("Cypress") and is protected by and subject to worldwide patent
-* protection (United States and foreign), United States copyright laws and
-* international treaty provisions. Therefore, you may use this Software only
-* as provided in the license agreement accompanying the software package from
-* which you obtained this Software ("EULA").
-*
+* This software, including source code, documentation and related
+* materials ("Software") is owned by Cypress Semiconductor Corporation
+* or one of its affiliates ("Cypress") and is protected by and subject to
+* worldwide patent protection (United States and foreign),
+* United States copyright laws and international treaty provisions.
+* Therefore, you may use this Software only as provided in the license
+* agreement accompanying the software package from which you
+* obtained this Software ("EULA").
 * If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
-* non-transferable license to copy, modify, and compile the Software source
-* code solely for use in connection with Cypress's integrated circuit products.
-* Any reproduction, modification, translation, compilation, or representation
-* of this Software except as specified above is prohibited without the express
-* written permission of Cypress.
+* non-transferable license to copy, modify, and compile the Software
+* source code solely for use in connection with Cypress's
+* integrated circuit products.  Any reproduction, modification, translation,
+* compilation, or representation of this Software except as specified
+* above is prohibited without the express written permission of Cypress.
 *
 * Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
 * EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
@@ -34,49 +34,41 @@
 * not authorize its products for use in any products where a malfunction or
 * failure of the Cypress product may reasonably be expected to result in
 * significant property damage, injury or death ("High Risk Product"). By
-* including Cypress's product in a High Risk Product, the manufacturer of such
-* system or application assumes all risk of such use and in doing so agrees to
-* indemnify Cypress against all liability.
-*******************************************************************************/
-#include <stdio.h>
-
-#include "cy_pdl.h"
+* including Cypress's product in a High Risk Product, the manufacturer
+* of such system or application assumes all risk of such use and in doing
+* so agrees to indemnify Cypress against all liability.
+*****************************************************************************/
+#include "audio_in.h"
+#include "audio_fs.h"
 #include "cyhal.h"
 #include "cybsp.h"
-#include "cycfg.h"
 
-#include "cy_retarget_io.h"
+#include "rtos.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-#include "limits.h"
-
-#include "usb_comm.h"
-#include "audio_fs.h"
+#include <stdio.h>
+#include <stdbool.h>
 
 /*******************************************************************************
 * Constants
 ********************************************************************************/
+#define PDM_DECIMATION_RATE         32
+#define PDM_PCM_BUFFER_SIZE         32768u
+
 #define NOTIFY_BUTTON_PRESS         0x1
 #define NOTIFY_PCM_DATA             0x2
 
-/* PDM Constants */
-#define PDM_DECIMATION_RATE         32
-#define PDM_DATA                    P10_5
-#define PDM_CLK                     P10_4
-#define PDM_PCM_BUFFER_SIZE         32768u
-
 #define DEBOUNCE_DELAY_MS           250
 
-/*******************************************************************************
-* Global Variables
-********************************************************************************/
-TaskHandle_t rtos_usb_task;
-TaskHandle_t rtos_audio_task;
-SemaphoreHandle_t rtos_fs_mutex;
+#ifndef CYBSP_PDM_DATA
+    #define CYBSP_PDM_DATA          CYBSP_A5
+#endif
+#ifndef CYBSP_PDM_CLK
+    #define CYBSP_PDM_CLK           CYBSP_A4
+#endif
 
-/* PDM Variables */
+/*******************************************************************************
+* Global variables
+********************************************************************************/
 cyhal_pdm_pcm_t pdm_pcm;
 uint8_t pdm_pcm_buf_0[PDM_PCM_BUFFER_SIZE];
 uint8_t pdm_pcm_buf_1[PDM_PCM_BUFFER_SIZE];
@@ -84,125 +76,22 @@ volatile bool pdm_pcm_toggle = false;
 volatile uint32_t num_samples_transfer;
 
 /*******************************************************************************
-* Function Prototypes
+* Function prototypes
 ********************************************************************************/
-void task_usb(void *arg);
-void task_audio(void *arg);
-void button_isr_handler(void *arg, cyhal_gpio_event_t event);
-void pdm_pcm_isr_handler(void *arg, cyhal_pdm_pcm_event_t event);
+static void audio_in_pdm_pcm_callback(void *arg, cyhal_pdm_pcm_event_t event);
+static void audio_in_button_callback(void *arg, cyhal_gpio_event_t event);
 
 /*******************************************************************************
-* Function Name: main
+* Function Name: audio_in_task
 ********************************************************************************
 * Summary:
-*  This is the main function for CM4 CPU. It initializes the RTOS handles.
-*
-* Parameters:
-*  void
-*
-* Return:
-*  int
-*
-*******************************************************************************/
-int main(void)
-{
-    cy_rslt_t result;
-    BaseType_t task_return;
-
-    /* Initialize the device and board peripherals */
-    result = cybsp_init() ;
-    if (result != CY_RSLT_SUCCESS)
-    {
-        CY_ASSERT(0);
-    }
-
-    /* Initialize retarget-io to use the debug UART port */
-    result = cy_retarget_io_init(CYBSP_DEBUG_UART_TX, CYBSP_DEBUG_UART_RX,
-                                 CY_RETARGET_IO_BAUDRATE);
-
-    /* Initialize the User Button */
-    cyhal_gpio_init(CYBSP_USER_BTN, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_PULLUP, CYBSP_BTN_OFF);
-
-    /* Enable global interrupts */
-    __enable_irq();
-
-    /* \x1b[2J\x1b[;H - ANSI ESC sequence for clear screen */
-    printf("\x1b[2J\x1b[;H");
-    printf("************* CE230360 - PSoC 6 MCU: USB Mass Storage File System *************\r\n\n");
-
-    /* Init the audio file system. Force format if user button is pressed */
-    audio_fs_init(cyhal_gpio_read(CYBSP_USER_BTN) == false);
-
-    /* Wait till button is released */
-    while (cyhal_gpio_read(CYBSP_USER_BTN) == false);
-
-    /* List all the record files */
-    audio_fs_list();
-
-    /* Create the RTOS tasks */
-    task_return = xTaskCreate(task_audio, "Audio Task",
-                              1024, NULL, 1,
-                              &rtos_audio_task);
-    if( task_return != pdPASS ) CY_ASSERT(0);
-
-    task_return = xTaskCreate(task_usb, "USB Task",
-                              1024, NULL, 1,
-                              &rtos_usb_task);
-    if( task_return != pdPASS ) CY_ASSERT(0);
-
-    /* Create the file system semaphore */
-    rtos_fs_mutex = xSemaphoreCreateMutex();
-
-    /* Start the scheduler */
-    vTaskStartScheduler();
-
-    for(;;)
-    {
-    }
-}
-
-/*******************************************************************************
-* Function Name: task_usb
-********************************************************************************
-* Summary:
-*  Initialize and handle the USB communication.
+*   Handle the audio recordings.
 *
 * Parameters:
 *  arg: not used
 *
 *******************************************************************************/
-void task_usb(void *arg)
-{
-    /* Initialize and enumerate the USB */
-    usb_comm_init();
-    usb_comm_connect();
-
-    while (1)
-    {
-        /* Check if other tasks are accessing the file system */
-        xSemaphoreTake(rtos_fs_mutex, portMAX_DELAY);
-        
-        /* Process any USB request */
-        usb_comm_process();
-
-        /* Release the file system to other tasks */
-        xSemaphoreGive(rtos_fs_mutex);
-
-        vTaskDelay(1);
-    }
-}
-
-/*******************************************************************************
-* Function Name: task_audio
-********************************************************************************
-* Summary:
-*  Handle the audio recordings.
-*
-* Parameters:
-*  arg: not used
-*
-*******************************************************************************/
-void task_audio(void *arg)
+void audio_in_task(void *arg)
 {
     bool is_recording = false;
     bool first_time = false;
@@ -211,11 +100,29 @@ void task_audio(void *arg)
     uint32_t notification_bits;
     cyhal_pdm_pcm_cfg_t pdm_pcm_cfg;
 
+    /* Check if other tasks are accessing the file system */
+    xSemaphoreTake(rtos_fs_mutex, portMAX_DELAY);
+
+    /* Init the audio file system. Force format if user button is pressed */
+    audio_fs_init(cyhal_gpio_read(CYBSP_USER_BTN) == false);
+
+    /* Wait till button is released */
+    while (cyhal_gpio_read(CYBSP_USER_BTN) == false)
+    {
+        cyhal_system_delay_ms(1);
+    };
+
+    /* List all the record files */
+    audio_fs_list();
+
+    /* Release the file system to other tasks */
+    xSemaphoreGive(rtos_fs_mutex);
+
     /* Initialize the User LED */
     cyhal_gpio_init(CYBSP_USER_LED, CYHAL_GPIO_DIR_OUTPUT, CYHAL_GPIO_DRIVE_STRONG, CYBSP_LED_STATE_OFF);
 
     /* Registering button event and enable it */
-    cyhal_gpio_register_callback(CYBSP_USER_BTN, button_isr_handler, NULL);
+    cyhal_gpio_register_callback(CYBSP_USER_BTN, audio_in_button_callback, NULL);
     cyhal_gpio_enable_event(CYBSP_USER_BTN, CYHAL_GPIO_IRQ_FALL, CYHAL_ISR_PRIORITY_DEFAULT, true);
     
     while (1)
@@ -274,8 +181,8 @@ void task_audio(void *arg)
                     pdm_pcm_cfg.right_gain = 0;
                     pdm_pcm_cfg.left_gain = 0;                   
 
-                    cyhal_pdm_pcm_init(&pdm_pcm, PDM_DATA, PDM_CLK, NULL, &pdm_pcm_cfg);
-                    cyhal_pdm_pcm_register_callback(&pdm_pcm, pdm_pcm_isr_handler, NULL);
+                    cyhal_pdm_pcm_init(&pdm_pcm, CYBSP_PDM_DATA, CYBSP_PDM_CLK, NULL, &pdm_pcm_cfg);
+                    cyhal_pdm_pcm_register_callback(&pdm_pcm, audio_in_pdm_pcm_callback, NULL);
                     cyhal_pdm_pcm_enable_event(&pdm_pcm, CYHAL_PDM_PCM_ASYNC_COMPLETE, CYHAL_ISR_PRIORITY_DEFAULT, true);
                     cyhal_pdm_pcm_start(&pdm_pcm);
 
@@ -330,11 +237,11 @@ void task_audio(void *arg)
                 }
             }
         }
-    }
+    }    
 }
 
 /*******************************************************************************
-* Function Name: button_isr_handler
+* Function Name: audio_in_button_callback
 ********************************************************************************
 * Summary:
 *  Send the button notification to the task.
@@ -344,7 +251,7 @@ void task_audio(void *arg)
 *  event: event that occurred
 *
 *******************************************************************************/
-void button_isr_handler(void *arg, cyhal_gpio_event_t event)
+static void audio_in_button_callback(void *arg, cyhal_gpio_event_t event)
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
@@ -367,7 +274,7 @@ void button_isr_handler(void *arg, cyhal_gpio_event_t event)
 }
 
 /*******************************************************************************
-* Function Name: pdm_pcm_isr_handler
+* Function Name: audio_in_pdm_pcm_callback
 ********************************************************************************
 * Summary:
 *  Send the PDM/PCM notification to the audio task and prepare to read data
@@ -378,7 +285,7 @@ void button_isr_handler(void *arg, cyhal_gpio_event_t event)
 *  event: event that occurred
 *
 *******************************************************************************/
-void pdm_pcm_isr_handler(void *arg, cyhal_pdm_pcm_event_t event)
+static void audio_in_pdm_pcm_callback(void *arg, cyhal_pdm_pcm_event_t event)
 {
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     uint8_t *buf = (pdm_pcm_toggle) ? pdm_pcm_buf_0 : pdm_pcm_buf_1;
@@ -402,22 +309,3 @@ void pdm_pcm_isr_handler(void *arg, cyhal_pdm_pcm_event_t event)
     use and may be called portEND_SWITCHING_ISR(). */
     portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
-
-
-/*******************************************************************************
-* Function Name: vApplicationIdleHook
-********************************************************************************
-* Summary:
-*  Idle task.
-*
-* Parameters:
-*  arg: not used
-*
-*******************************************************************************/
-void vApplicationIdleHook( void )
-{
-    /* Go to sleep */
-    cyhal_system_sleep();
-}
-
-/* [] END OF FILE */

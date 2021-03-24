@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Design version="12" device_library_hint_path="../../../mtb_shared/mtb-pdl-cat1/latest-v2.X/devicesupport.xml" xmlns="http://cypress.com/xsd/cydesignfile_v3">
-    <ToolInfo version="2.2.0.2703"/>
+    <ToolInfo version="2.2.0.2801"/>
     <Devices>
         <Device mpn="CYB0644ABZI-S2D44">
             <BlockConfig>
@@ -677,7 +677,7 @@
                         <Param id="coreRegulator" value="CY_SYSPM_LDO_MODE_NORMAL"/>
                         <Param id="pmicEnable" value="false"/>
                         <Param id="backupSrc" value="VDDD"/>
-                        <Param id="idlePwrMode" value="CY_CFG_PWR_MODE_DEEPSLEEP"/>
+                        <Param id="idlePwrMode" value="CY_CFG_PWR_MODE_SLEEP"/>
                         <Param id="deepsleepLatency" value="15"/>
                         <Param id="vddaMv" value="3300"/>
                         <Param id="vdddMv" value="3300"/>

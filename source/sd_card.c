@@ -7,32 +7,36 @@
 * Note:
 *
 ******************************************************************************
-* Copyright (2020), Cypress Semiconductor Corporation.
-******************************************************************************
-* This software is owned by Cypress Semiconductor Corporation (Cypress) and is
-* protected by and subject to worldwide patent protection (United States and
-* foreign), United States copyright laws and international treaty provisions.
-* Cypress hereby grants to licensee a personal, non-exclusive, non-transferable
-* license to copy, use, modify, create derivative works of, and compile the
-* Cypress Source Code and derivative works for the sole purpose of creating
-* custom software in support of licensee product to be used only in conjunction
-* with a Cypress integrated circuit as specified in the applicable agreement.
-* Any reproduction, modification, translation, compilation, or representation of
-* this software except as specified above is prohibited without the express
-* written permission of Cypress.
+* Copyright 2021, Cypress Semiconductor Corporation (an Infineon company) or
+* an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
 *
-* Disclaimer: CYPRESS MAKES NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, WITH
-* REGARD TO THIS MATERIAL, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
-* Cypress reserves the right to make changes without further notice to the
-* materials described herein. Cypress does not assume any liability arising out
-* of the application or use of any product or circuit described herein. Cypress
-* does not authorize its products for use as critical components in life-support
-* systems where a malfunction or failure may reasonably be expected to result in
-* significant injury to the user. The inclusion of Cypress' product in a life-
-* support systems application implies that the manufacturer assumes all risk of
-* such use and in doing so indemnifies Cypress against all charges. Use may be
-* limited by and subject to the applicable Cypress software license agreement.
+* This software, including source code, documentation and related
+* materials ("Software") is owned by Cypress Semiconductor Corporation
+* or one of its affiliates ("Cypress") and is protected by and subject to
+* worldwide patent protection (United States and foreign),
+* United States copyright laws and international treaty provisions.
+* Therefore, you may use this Software only as provided in the license
+* agreement accompanying the software package from which you
+* obtained this Software ("EULA").
+* If no EULA applies, Cypress hereby grants you a personal, non-exclusive,
+* non-transferable license to copy, modify, and compile the Software
+* source code solely for use in connection with Cypress's
+* integrated circuit products.  Any reproduction, modification, translation,
+* compilation, or representation of this Software except as specified
+* above is prohibited without the express written permission of Cypress.
+*
+* Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND,
+* EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, NONINFRINGEMENT, IMPLIED
+* WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress
+* reserves the right to make changes to the Software without notice. Cypress
+* does not assume any liability arising out of the application or use of the
+* Software or any product or circuit described in the Software. Cypress does
+* not authorize its products for use in any products where a malfunction or
+* failure of the Cypress product may reasonably be expected to result in
+* significant property damage, injury or death ("High Risk Product"). By
+* including Cypress's product in a High Risk Product, the manufacturer
+* of such system or application assumes all risk of such use and in doing
+* so agrees to indemnify Cypress against all liability.
 *****************************************************************************/
 #include "sd_card.h"
 #include "cy_utils.h"
@@ -56,13 +60,12 @@
 #define DAT5                    NC
 #define DAT6                    NC
 #define DAT7                    NC
-#define CARD_DETECT             NC
+#define CARD_DETECT             CYBSP_SDHC_DETECT
 #define EMMC_RESET              NC
 #define IO_VOLT_SEL             NC
 #define CARD_IF_PWREN           NC
 #define CARD_MECH_WRITEPROT     NC
 #define LED_CTL                 NC
-#define CUSTOM_CARD_DETECT      CYBSP_SDHC_DETECT
 
 #define ENABLE_LED_CONTROL      false
 #define LOW_VOLTAGE_SIGNALLING  false
@@ -82,25 +85,6 @@ cyhal_sdhc_t sdhc_obj;
 const cyhal_sdhc_config_t sdhc_config = {ENABLE_LED_CONTROL, LOW_VOLTAGE_SIGNALLING, IS_EMMC, BUS_WIDTH};
 
 /*******************************************************************************
-* Function Name: Cy_SD_Host_IsCardConnected
-****************************************************************************//**
-*
-*  Checks to see if a card is currently connected.
-*
-* \param *base
-*     The SD host registers structure pointer.
-*
-* \return bool
-*     true - the card is connected, false - the card is removed (not connected).
-*
-*******************************************************************************/
-__USED bool Cy_SD_Host_IsCardConnected(SDHC_Type const *base __attribute__((unused)))
-{
-    /* Card detect pin reads 0 when card detected, 1 when card not detected */
-    return cyhal_gpio_read(CUSTOM_CARD_DETECT) ? false : true;
-}
-
-/*******************************************************************************
 * Function Name: sd_card_is_connected
 ****************************************************************************//**
 *
@@ -113,7 +97,7 @@ __USED bool Cy_SD_Host_IsCardConnected(SDHC_Type const *base __attribute__((unus
 bool sd_card_is_connected(void)
 {
     /* Card detect pin reads 0 when card detected, 1 when card not detected */
-    return cyhal_gpio_read(CUSTOM_CARD_DETECT) ? false : true;
+    return cyhal_gpio_read(CARD_DETECT) ? false : true;
 }
 
 /*******************************************************************************
@@ -129,17 +113,6 @@ bool sd_card_is_connected(void)
 cy_rslt_t sd_card_init(void)
 {
     cy_rslt_t result;
-    
-    /* Initialize the custom card detect pin */
-    result = cyhal_gpio_init(CUSTOM_CARD_DETECT, CYHAL_GPIO_DIR_INPUT, CYHAL_GPIO_DRIVE_NONE, INITIAL_VALUE);
-    if(result != CY_RSLT_SUCCESS) {
-        return result;
-    }
-
-    /* Check if the SD card is plugged in the slot */
-    if(!sd_card_is_connected()) {
-        return CY_SD_HOST_ERROR_DISCONNECTED;
-    }
 
     /* Initialize the SD card */
     result = cyhal_sdhc_init(&sdhc_obj, &sdhc_config, CMD, CLK, DAT0, DAT1, DAT2, DAT3, DAT4, DAT5, DAT6, DAT7,
@@ -209,6 +182,7 @@ cy_rslt_t sd_card_read(uint32_t address, uint8_t *data, uint32_t *length)
     if(!sd_card_is_connected()) {
         return CY_RSLT_TYPE_ERROR;
     }
+    
     result = cyhal_sdhc_read(&sdhc_obj, address, data, (size_t *)length);
     if (result != CY_RSLT_SUCCESS) {
         return result;
@@ -237,6 +211,7 @@ cy_rslt_t sd_card_write(uint32_t address, const uint8_t *data, uint32_t *length)
     if(!sd_card_is_connected()) {
         return CY_RSLT_TYPE_ERROR;
     }
+
     result = cyhal_sdhc_write(&sdhc_obj, address, data, (size_t *)length);
     if (result != CY_RSLT_SUCCESS) {
         return result;
