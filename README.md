@@ -1,3 +1,4 @@
+**This repository is deprecated.** Use the MTB example available here - https://github.com/Infineon/mtb-example-usb-device-msc-filesystem-freertos
 # PSoC&trade; 6 MCU: USB mass storage file system
 
 This example demonstrates how to configure the USB block in a PSoC&trade; 6 MCU device as a mass storage class (MSC) device and run a file system ([FatFs](https://elm-chan.org/fsw/ff/00index_e.html)) through an external memory (microSD). This example uses FreeRTOS.
